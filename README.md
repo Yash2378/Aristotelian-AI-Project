@@ -16,8 +16,8 @@ This repository contains the updated version of the Aristotle Digital Immortalit
 
 ### Prerequisites
 
-Python 3.7 or higher
-Cohere API Key
+- Python 3.7 or higher
+- Cohere API Key
 
 ## Installation
 
