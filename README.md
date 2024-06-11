@@ -12,7 +12,7 @@ This repository contains the updated version of the Aristotle Digital Immortalit
 4. Scalability: Designed to handle a large number of queries with optimized performance.
 
 ## Project Structure
-bash
+
 ```
 Aristotle-Chatbot-Cohere/
 ├── data/
@@ -51,7 +51,6 @@ Aristotle-Chatbot-Cohere/
 
 1. Clone the repository:
 
-bash
 ```
 git clone https://github.com/yourusername/Aristotle-Chatbot-Cohere.git
 cd Aristotle-Chatbot-Cohere
@@ -59,7 +58,6 @@ cd Aristotle-Chatbot-Cohere
 
 2. Install dependencies:
 
-bash
 ```
 pip install -r requirements.txt
 ```
@@ -74,7 +72,7 @@ pip install -r requirements.txt
 - Preprocess the PDF texts:
 - Ensure your PDF files are in the specified folder.
 - Run the data preparation script to extract and preprocess the texts:
-bash
+
 ```
 python src/data_preparation.py
 ```
@@ -83,7 +81,6 @@ python src/data_preparation.py
 1. Configure the API Key:
 
 - Set your API key in the environment:
-bash
 ```
 export COHERE_API_KEY='your-api-key-here'
 ```
@@ -91,8 +88,6 @@ export COHERE_API_KEY='your-api-key-here'
 - Alternatively, you can set it directly in your Python script where you initialize the Cohere client.
 
 2. Run the application:
-
-bash
 ```
 python app.py
 ```
@@ -138,7 +133,6 @@ The notebooks folder contains Jupyter notebooks for data preparation and model t
 
 To run these notebooks, navigate to the notebooks folder and start Jupyter Notebook:
 
-bash
 ```
 jupyter notebook
 ```
@@ -157,7 +151,7 @@ Contributions are welcome! Please follow these steps to contribute:
 
 
 ## License
-This project is licensed under the Custom License. See the LICENSE file for details.
+This project is licensed under the Custom License. See the LICENSE.md file for details.
 
 ## Acknowledgements
 - Thanks to Cohere for providing the language model.
