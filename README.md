@@ -11,6 +11,34 @@ This repository contains the updated version of the Aristotle Digital Immortalit
 3. Seamless Integration: Easy-to-use interface for interacting with the chatbot.
 4. Scalability: Designed to handle a large number of queries with optimized performance.
 
+## Project Structure
+bash
+```
+Aristotle-Chatbot-Cohere/
+├── data/
+│   ├── processed_aristotle_texts.json  # Your dataset containing processed texts
+│
+├── notebooks/
+│   ├── data_preparation.ipynb          # Jupyter notebook for data preparation
+│   ├── training_and_evaluation.ipynb   # Jupyter notebook for model training and evaluation
+│
+├── src/
+│   ├── __init__.py
+│   ├── cohere_client.py               # Code for initializing and interacting with Cohere API
+│   ├── data_preparation.py            # Scripts for preparing and processing data
+│   ├── train_model.py                 # Script to train the model using Cohere
+│   ├── chatbot.py                     # Main script to run the chatbot
+│
+├── tests/
+│   ├── test_chatbot.py                # Unit tests for the chatbot
+│
+├── .gitignore
+├── LICENSE                            # Custom License file
+├── README.md
+├── requirements.txt                   # List of dependencies
+└── app.py                             # Entry point to run the chatbot application
+```
+
 
 ## Getting Started
 
@@ -40,6 +68,16 @@ pip install -r requirements.txt
 
 - Obtain your API key from Cohere.
 - Set it as an environment variable or directly in the code.
+
+## Data Preparation
+
+- Preprocess the PDF texts:
+- Ensure your PDF files are in the specified folder.
+- Run the data preparation script to extract and preprocess the texts:
+bash
+```
+python src/data_preparation.py
+```
 
 ## Running the Application
 1. Configure the API Key:
@@ -86,6 +124,25 @@ response = get_response(prompt)
 print(response)
 ```
 
+## Notebooks
+
+The notebooks folder contains Jupyter notebooks for data preparation and model training/evaluation.
+
+### Data Preparation:
+
+- data_preparation.ipynb: This notebook demonstrates the process of extracting and preprocessing text from PDF files.
+
+### Training and Evaluation:
+
+- training_and_evaluation.ipynb: This notebook demonstrates the process of training and evaluating the model using Cohere's Command R+.
+
+To run these notebooks, navigate to the notebooks folder and start Jupyter Notebook:
+
+bash
+```
+jupyter notebook
+```
+Then, open the desired notebook to explore and execute the cells.
 
 ## Contributing
 
