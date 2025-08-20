@@ -1,0 +1,111 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aristotelian-multilingual-ai"
+version = "2.0.0"
+description = "Advanced multilingual conversational AI for philosophical dialogue"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Your Team", email = "team@aristotelian-ai.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Education",
+    "Topic :: Text Processing :: Linguistic",
+]
+keywords = [
+    "ai", "nlp", "multilingual", "philosophy", "education",
+    "aristotle", "cultural-adaptation", "cross-lingual"
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "sqlalchemy>=2.0.23",
+    "asyncpg>=0.29.0",
+    "redis>=5.0.1",
+    "cohere>=4.37.0",
+    "numpy>=1.25.0",
+    "pandas>=2.1.0",
+    "scikit-learn>=1.3.0",
+    "sentence-transformers>=2.2.2",
+    "transformers>=4.35.0",
+    "torch>=2.1.0",
+    "nltk>=3.8.0",
+    "spacy>=3.7.0",
+    "langdetect>=1.0.9",
+    "python-multipart>=0.0.6",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "prometheus-fastapi-instrumentator>=6.1.0",
+    "python-json-logger>=2.0.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.0",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pre-commit>=3.5.0",
+]
+test = [
+    "httpx>=0.25.0",
+    "factory-boy>=3.3.0",
+    "faker>=20.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/aristotelian-multilingual-ai"
+Documentation = "https://docs.aristotelian-ai.com"
+Repository = "https://github.com/your-org/aristotelian-multilingual-ai"
+Issues = "https://github.com/your-org/aristotelian-multilingual-ai/issues"
+Changelog = "https://github.com/your-org/aristotelian-multilingual-ai/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?
+    
+    def log_error(
+        self,
+        error_type: str,
+        error_message: str,
+        user_id: str = None,
+        context: dict = None
+    ):
+        """Log errors with structured context"""
+        self.logger.error(
+            f"Error: {error_type}",
+            extra={
+                "event_type": "error",
+                "error_type": error_type,
+                "error_message": error_message,
+                "user_id": user_id,
+                "context": context or {},
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )

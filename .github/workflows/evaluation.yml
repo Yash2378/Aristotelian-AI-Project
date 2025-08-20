@@ -1,0 +1,261 @@
+name: Evaluation Pipeline
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/evaluation/**'
+      - 'data/evaluation/**'
+  workflow_dispatch:
+    inputs:
+      evaluation_type:
+        description: 'Type of evaluation to run'
+        required: true
+        default: 'comprehensive'
+        type: choice
+        options:
+        - comprehensive
+        - philosophical_accuracy
+        - cultural_appropriateness
+        - educational_effectiveness
+        - cross_lingual_consistency
+      languages:
+        description: 'Languages to evaluate (comma-separated)'
+        required: true
+        default: 'en,es,fr,de,it'
+
+jobs:
+  # Comprehensive Evaluation
+  comprehensive-evaluation:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.evaluation_type == 'comprehensive' || github.event.inputs.evaluation_type == ''
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_aristotelian_ai
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/testing.txt
+        
+    - name: Download spaCy models
+      run: |
+        python -m spacy download en_core_web_sm
+        python -m spacy download es_core_news_sm
+        python -m spacy download fr_core_news_sm
+        python -m spacy download de_core_news_sm
+        python -m spacy download it_core_news_sm
+        
+    - name: Run comprehensive evaluation
+      env:
+        DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_aristotelian_ai
+        REDIS_URL: redis://localhost:6379
+        COHERE_API_KEY: ${{ secrets.COHERE_API_KEY_TEST }}
+        LANGUAGES: ${{ github.event.inputs.languages || 'en,es,fr,de,it' }}
+      run: |
+        python scripts/evaluation/run_comprehensive_evaluation.py \
+          --languages $LANGUAGES \
+          --test-cases data/evaluation/comprehensive_test_cases.json \
+          --output-dir evaluation-results/
+          
+    - name: Generate evaluation dashboard
+      run: |
+        python scripts/evaluation/generate_dashboard.py \
+          --input evaluation-results/ \
+          --output evaluation-dashboard.html
+          
+    - name: Upload evaluation results
+      uses: actions/upload-artifact@v3
+      with:
+        name: comprehensive-evaluation-results
+        path: |
+          evaluation-results/
+          evaluation-dashboard.html
+          
+    - name: Post evaluation summary to PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const path = 'evaluation-results/summary.json';
+          
+          if (fs.existsSync(path)) {
+            const summary = JSON.parse(fs.readFileSync(path, 'utf8'));
+            
+            const comment = `## 📊 Evaluation Results
+            
+            **Overall Performance**: ${(summary.overall_score * 100).toFixed(1)}%
+            
+            ### Key Metrics
+            - **Philosophical Accuracy**: ${(summary.philosophical_accuracy * 100).toFixed(1)}%
+            - **Cultural Appropriateness**: ${(summary.cultural_appropriateness * 100).toFixed(1)}%
+            - **Educational Effectiveness**: ${(summary.educational_effectiveness * 100).toFixed(1)}%
+            - **Cross-lingual Consistency**: ${(summary.cross_lingual_consistency * 100).toFixed(1)}%
+            
+            ### Target Achievement
+            - **BLEU Parity (>85%)**: ${summary.bleu_parity ? '✅' : '❌'} ${(summary.bleu_score_avg * 100).toFixed(1)}%
+            - **Philosophical Accuracy (>80%)**: ${summary.philosophical_accuracy > 0.8 ? '✅' : '❌'}
+            - **Cultural Appropriateness (>75%)**: ${summary.cultural_appropriateness > 0.75 ? '✅' : '❌'}
+            
+            [View Full Dashboard](${summary.dashboard_url})`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }
+
+  # Philosophical Accuracy Focus
+  philosophical-accuracy-evaluation:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.evaluation_type == 'philosophical_accuracy'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/testing.txt
+        
+    - name: Run philosophical accuracy evaluation
+      env:
+        COHERE_API_KEY: ${{ secrets.COHERE_API_KEY_TEST }}
+        LANGUAGES: ${{ github.event.inputs.languages || 'en,es,fr,de,it' }}
+      run: |
+        python scripts/evaluation/philosophical_accuracy_evaluation.py \
+          --languages $LANGUAGES \
+          --concepts data/evaluation/philosophical_concepts.json \
+          --expert-validation-enabled \
+          --output-dir philosophical-accuracy-results/
+          
+    - name: Upload philosophical accuracy results
+      uses: actions/upload-artifact@v3
+      with:
+        name: philosophical-accuracy-results
+        path: philosophical-accuracy-results/
+
+  # Cultural Appropriateness Focus
+  cultural-appropriateness-evaluation:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.evaluation_type == 'cultural_appropriateness'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/testing.txt
+        
+    - name: Run cultural appropriateness evaluation
+      env:
+        COHERE_API_KEY: ${{ secrets.COHERE_API_KEY_TEST }}
+        LANGUAGES: ${{ github.event.inputs.languages || 'en,es,fr,de,it' }}
+      run: |
+        python scripts/evaluation/cultural_appropriateness_evaluation.py \
+          --languages $LANGUAGES \
+          --cultural-contexts data/evaluation/cultural_contexts.json \
+          --sensitivity-check-enabled \
+          --output-dir cultural-appropriateness-results/
+          
+    - name: Upload cultural appropriateness results
+      uses: actions/upload-artifact@v3
+      with:
+        name: cultural-appropriateness-results
+        path: cultural-appropriateness-results/
+
+  # Aya Contribution Update
+  update-aya-contributions:
+    runs-on: ubuntu-latest
+    needs: [comprehensive-evaluation]
+    if: github.ref == 'refs/heads/main' && success()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/base.txt
+        
+    - name: Download evaluation results
+      uses: actions/download-artifact@v3
+      with:
+        name: comprehensive-evaluation-results
+        path: evaluation-results/
+        
+    - name: Update Aya datasets
+      env:
+        AYA_API_KEY: ${{ secrets.AYA_API_KEY }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        python scripts/aya_integration/update_aya_datasets.py \
+          --evaluation-results evaluation-results/ \
+          --create-pull-request \
+          --auto-submit
+          
+    - name: Generate community report
+      run: |
+        python scripts/aya_integration/generate_community_report.py \
+          --evaluation-results evaluation-results/ \
+          --output community-impact-report.md
+          
+    - name: Upload community report
+      uses: actions/upload-artifact@v3
+      with:
+        name: community-impact-report
+        path: community-impact-report.md

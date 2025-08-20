@@ -1,0 +1,127 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Dependency Vulnerability Scanning
+  dependency-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit semgrep
+        
+    - name: Run safety check
+      run: |
+        safety check --json --output safety-report.json || true
+        
+    - name: Run bandit security check
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+        
+    - name: Run semgrep security analysis
+      run: |
+        semgrep --config=auto --json --output=semgrep-report.json src/ || true
+        
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          safety-report.json
+          bandit-report.json
+          semgrep-report.json
+
+  # Container Security Scanning
+  container-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build Docker image
+      run: |
+        docker build -t aristotelian-ai:security-test -f deployment/docker/Dockerfile .
+        
+    - name: Run Trivy container scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'aristotelian-ai:security-test'
+        format: 'sarif'
+        output: 'trivy-container-results.sarif'
+        
+    - name: Run Snyk container scan
+      uses: snyk/actions/docker@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        image: aristotelian-ai:security-test
+        args: --file=deployment/docker/Dockerfile --json-file-output=snyk-container-report.json
+      continue-on-error: true
+        
+    - name: Upload container security results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-container-results.sarif'
+
+  # Infrastructure Security Scanning
+  infrastructure-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run tfsec on Terraform files
+      uses: aquasecurity/tfsec-action@v1.0.0
+      with:
+        working_directory: deployment/terraform
+        
+    - name: Run checkov on Kubernetes manifests
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: deployment/kubernetes
+        framework: kubernetes
+        output_format: sarif
+        output_file_path: checkov-k8s-results.sarif
+        
+    - name: Upload infrastructure scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'checkov-k8s-results.sarif'
+
+  # Secrets Scanning
+  secrets-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run TruffleHog secrets scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified

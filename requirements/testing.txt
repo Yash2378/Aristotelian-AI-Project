@@ -1,0 +1,6 @@
+-r development.txt
+httpx>=0.25.0
+factory-boy>=3.3.0
+faker>=20.1.0
+pytest-mock>=3.12.0
+pytest-xdist>=3.5.0

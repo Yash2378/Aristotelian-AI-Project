@@ -1,0 +1,207 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/aristotelian-ai
+
+jobs:
+  # Build and Push Container Images
+  build-and-push:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'release'
+    
+    permissions:
+      contents: read
+      packages: write
+      
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./deployment/docker/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  # Deploy to Staging
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+        echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+        
+    - name: Deploy to staging
+      run: |
+        # Update image tag in deployment
+        sed -i "s|IMAGE_TAG|${{ needs.build-and-push.outputs.image-tag }}|g" deployment/kubernetes/staging/deployment.yaml
+        
+        # Apply Kubernetes manifests
+        kubectl apply -f deployment/kubernetes/staging/
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/aristotelian-ai-api -n aristotelian-ai-staging --timeout=600s
+        
+    - name: Run staging smoke tests
+      env:
+        STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+        COHERE_API_KEY: ${{ secrets.COHERE_API_KEY_STAGING }}
+      run: |
+        python scripts/deployment/smoke_tests.py --environment staging --api-url $STAGING_API_URL
+        
+    - name: Run staging evaluation
+      env:
+        STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+        DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      run: |
+        python scripts/evaluation/staging_evaluation.py --api-url $STAGING_API_URL
+
+  # Deploy to Production
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+        echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+        
+    - name: Deploy to production
+      run: |
+        # Update image tag in deployment
+        sed -i "s|IMAGE_TAG|${{ needs.build-and-push.outputs.image-tag }}|g" deployment/kubernetes/production/deployment.yaml
+        
+        # Apply Kubernetes manifests
+        kubectl apply -f deployment/kubernetes/production/
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/aristotelian-ai-api -n aristotelian-ai --timeout=600s
+        
+    - name: Run production smoke tests
+      env:
+        PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+        COHERE_API_KEY: ${{ secrets.COHERE_API_KEY_PRODUCTION }}
+      run: |
+        python scripts/deployment/smoke_tests.py --environment production --api-url $PRODUCTION_API_URL
+        
+    - name: Run comprehensive production evaluation
+      env:
+        PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+        DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        COHERE_API_KEY: ${{ secrets.COHERE_API_KEY_PRODUCTION }}
+      run: |
+        python scripts/evaluation/production_evaluation.py --comprehensive --api-url $PRODUCTION_API_URL
+        
+    - name: Update Aya community datasets
+      env:
+        AYA_API_KEY: ${{ secrets.AYA_API_KEY }}
+        PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+      run: |
+        python scripts/aya_integration/update_aya_datasets.py --production-url $PRODUCTION_API_URL
+        
+    - name: Send deployment notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        text: |
+          🚀 Production deployment successful!
+          
+          **Version**: ${{ github.sha }}
+          **Environment**: Production
+          **Image**: ${{ needs.build-and-push.outputs.image-tag }}
+          **Time**: ${{ github.event.head_commit.timestamp }}
+          
+          **Tests**: All smoke tests and evaluations passed
+          **Metrics**: Comprehensive evaluation completed
+          **Community**: Aya datasets updated
+
+  # Rollback Capability
+  rollback-production:
+    runs-on: ubuntu-latest
+    if: failure() && github.ref == 'refs/heads/main'
+    needs: [deploy-production]
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+        echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+        
+    - name: Rollback deployment
+      run: |
+        kubectl rollout undo deployment/aristotelian-ai-api -n aristotelian-ai
+        kubectl rollout status deployment/aristotelian-ai-api -n aristotelian-ai --timeout=300s
+        
+    - name: Send rollback notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: 'warning'
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        text: |
+          ⚠️ Production deployment failed - Rollback executed
+          
+          **Failed Version**: ${{ github.sha }}
+          **Rollback**: Previous version restored
+          **Action Required**: Check logs and fix issues before redeploying
